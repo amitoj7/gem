@@ -56,7 +56,17 @@ def _get_service():
     creds_json_str = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     if creds_json_str:
         import json
-        creds_info = json.loads(creds_json_str)
+        # Clean up any accidental leading/trailing quotes from Railway dashboard
+        clean_json_str = creds_json_str.strip().strip("'").strip('"')
+        
+        try:
+            creds_info = json.loads(clean_json_str)
+            # If it somehow was double-escaped into a string, parse it again
+            if isinstance(creds_info, str):
+                creds_info = json.loads(creds_info)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse GOOGLE_CREDENTIALS_JSON: {e}. Make sure you copied the raw JSON exactly.")
+            
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=SCOPES)
     else:
         key_path = os.environ.get(
