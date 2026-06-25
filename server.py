@@ -51,16 +51,25 @@ def _get_service():
     global _SERVICE
     if _SERVICE is not None:
         return _SERVICE
-    key_path = os.environ.get(
-        "GOOGLE_SERVICE_ACCOUNT_JSON",
-        os.path.join(os.path.dirname(__file__), "credentials.json"),
-    )
-    if not os.path.exists(key_path):
-        raise FileNotFoundError(
-            f"Service account key not found at {key_path}. "
-            "Set GOOGLE_SERVICE_ACCOUNT_JSON or place credentials.json next to server.py."
+        
+    # Try reading from JSON string in env var first (for Railway)
+    creds_json_str = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    if creds_json_str:
+        import json
+        creds_info = json.loads(creds_json_str)
+        creds = service_account.Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+    else:
+        key_path = os.environ.get(
+            "GOOGLE_SERVICE_ACCOUNT_JSON",
+            os.path.join(os.path.dirname(__file__), "credentials.json"),
         )
-    creds = service_account.Credentials.from_service_account_file(key_path, scopes=SCOPES)
+        if not os.path.exists(key_path):
+            raise FileNotFoundError(
+                f"Service account key not found at {key_path} and GOOGLE_CREDENTIALS_JSON not set. "
+                "Set GOOGLE_CREDENTIALS_JSON or place credentials.json next to server.py."
+            )
+        creds = service_account.Credentials.from_service_account_file(key_path, scopes=SCOPES)
+        
     _SERVICE = build("sheets", "v4", credentials=creds, cache_discovery=False)
     return _SERVICE
 
@@ -412,7 +421,8 @@ def _warmup():
 if __name__ == "__main__":
     os.makedirs(STATIC_DIR, exist_ok=True)
     _warmup()
-    print(f"\n🚀 Starting GeM Review Tool on http://0.0.0.0:5050")
+    port = int(os.environ.get("PORT", 5050))
+    print(f"\n🚀 Starting GeM Review Tool on http://0.0.0.0:{port}")
     print(f"   Spreadsheet: {SPREADSHEET_ID}")
     print(f"   Sheet tab:   {SHEET_NAME}\n")
-    app.run(host="0.0.0.0", port=5050, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
